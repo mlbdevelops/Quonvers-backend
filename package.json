@@ -25,6 +25,7 @@
     "firebase-admin": "^10.3.0",
     "ioredis": "^5.10.0",
     "jsonwebtoken": "^9.0.2",
+    "level": "^10.0.0",
     "multer": "^2.0.2",
     "node-cron": "^4.2.1",
     "nodemailer": "^7.0.10",
