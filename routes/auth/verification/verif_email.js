@@ -22,7 +22,7 @@ export async function sendVerificationCode(email, code) {
       <h2>Quonvers Email Verification</h2>
       <p>Your verification code is:</p>
       <h1>${code}</h1>
-      <p>Don't share this code.</p>
+      <p style="font-width: bold">Quonvers will never ask for this code, so don't share it.</p>
     `,
   };
   await transporter.sendMail(mailOptions);

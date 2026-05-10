@@ -1,6 +1,6 @@
 import Router from 'express';
-import { pool } from '../db/db.js'
-import VerifToken from '../security/VerifJwt.js'
+import { pool } from '../../db/db.js'
+import VerifToken from '../../security/VerifJwt.js'
 const router = Router();
 
 router.get('/api/requests/mine/get', VerifToken, async (req, res) => {

@@ -5,7 +5,7 @@ const secret = process.env.JWT_SECRET;
 export default async function VerifToken(req, res, next) {
   const token = req.headers.token;
   if (!token) return res.status(401).send({ 
-    msg: 'Unauthorized.',
+    msg: 'Unauthorized',
     code: 401
   });
   try {
@@ -15,7 +15,7 @@ export default async function VerifToken(req, res, next) {
   } catch (err) {
     console.log(err);
     res.status(401).json({ 
-      msg: 'Invalid or expired token.',
+      msg: 'Invalid or expired token',
       code: 802
     });
   }

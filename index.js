@@ -4,10 +4,11 @@ import registerRouter from './routes/auth/email/register.js';
 import loginRoute from './routes/auth/email/login.js';
 import chatCreateRoute from './routes/chat/create_chat.js';
 import chatReqRoute from './routes/user/chat_request.js';
+import userData from './routes/user/getInfo.js';
 import get_chat_list from './routes/chat/get_chat.js';
 //import loginRouter from './routes/auth/login.js';
 import LikeRoute from './routes/post/reactions/like.js';
-import notificationsRoutes from './routes/notification.js'
+import notificationsRoutes from './routes/request/request.js'
 import getPostsRoute from './routes/post/get/post.js';
 import CreatePostRoute from './routes/post/create/post.js';
 import searchRoute from './routes/search.js';
@@ -32,6 +33,7 @@ app.use(searchRoute);
 app.use(chatReqRoute);
 app.use(chatCreateRoute);
 app.use(notificationsRoutes);
+app.use(userData);
 app.use(CreatePostRoute);
 app.use(LikeRoute);
 
@@ -44,8 +46,9 @@ RegisterSocket(server);
   console.log(now.rows[0]);
 })()
 
+
 app.use((err, res, req) => {
-  res.send({msg: 'Unavailable or blocked route.'});
+  res.send({code: 401, msg: 'Invalid or blocked route.'});
 });
 
 server.listen(PORT, () => {

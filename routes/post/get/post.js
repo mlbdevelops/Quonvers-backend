@@ -37,7 +37,7 @@ router.get('/api/post/_get', VerifToken, async (req, res) => {
       AND pl_current.user_id = $1
     GROUP BY p.id, u.username, u.name, u.avatar, u.is_verified, pl_current.user_id
   `,[req.user])
-  console.log(user_post.rows);
+  //console.log(user_post.rows);
   res.status(200).send(user_post.rows)
 })
 
