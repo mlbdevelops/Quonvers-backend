@@ -105,6 +105,10 @@ export default function RegisterSocket(server) {
           return typeof ack === 'function' && ack({ ok: false });
         }
         
+        //Check if id exists
+        const getMsg = await redis.get(`undelivered_msg:${msg.id}`);
+        if (getMsg) return;
+        
         // basic validation
         if (!msg?.id || !msg?.toUser) {
           return typeof ack === 'function' && ack({ ok: false, code: 300 });

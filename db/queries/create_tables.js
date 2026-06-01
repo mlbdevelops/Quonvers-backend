@@ -12,16 +12,26 @@ export const setup_tables = async () => {
       password_hash TEXT NOT NULL,
       avatar TEXT,
       phone VARCHAR(20) UNIQUE,
-      is_verified BOOLEAN DEFAULT false,
-      bio TEXT,
+      is_pro BOOLEAN DEFAULT false,
+      intro TEXT,
+      public_key TEXT,
+      profile_status TEXT,
       birthdate DATE,
-      auth_method TEXT CHECK (auth_method IN ('phone', 'email', 'google')),
-      last_login TIMESTAMP,
-      last_login_device_name TEXT,
+      tags JSONB,
+      discoverable BOOLEAN DEFAULT false,
       acc_status TEXT NOT NULL DEFAULT 'active',
       joined_at TIMESTAMP DEFAULT NOW()
     );
   `);
+  
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users_login_activity (
+      user_id REFERENCES users(id) ON DELETE CASCADE,
+      auth_method TEXT CHECK (auth_method IN ('phone', 'email', 'google')),
+      last_login TIMESTAMP,
+      last_login_device_name TEXT
+    )
+  `)
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS chat_requests (
@@ -75,6 +85,15 @@ export const setup_tables = async () => {
       edited BOOLEAN DEFAULT false,
       disappears_at TIMESTAMP,
       created_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+  
+  
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS followers (
+      user_id UUID REFERENCES users(id) ON DELETE CASCADE PRIMARY KEY,
+      follower_id UUID REFERENCES users(id) ON DELETE CASCADE,
+      followed_at TIMESTAMP DEFAULT NOW(),
     );
   `);
 
