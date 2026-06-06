@@ -17,7 +17,7 @@ export default function RegisterSocket(server) {
         socket.userId = userId;
         socket.join(userId);
         
-        // mark online
+        // MARK ONLINE
         await redis.set(`online:${userId}`, "1");
         console.log(`✅ ${userId} connected`);
         const isOnline = await redis.get(`online:${userId}`);
@@ -58,38 +58,17 @@ export default function RegisterSocket(server) {
           }
         }
         
-        let request;
-        while ((request = await redis.lpop(`pending_requests:send:${userId}`))) {
-          const {
-            id,
-            toUser,
-            sender_id,
-            sent_at,
-            message
-          } = JSON.parse(request);
-          
-          console.log('💌 Cached resuests found for user', userId, request);
-          
-          if (userId !== toUser) continue;
-          
+        let stringCommand;
+        while ((stringCommand = await redis.lpop(`pending_app_commands:${userId}`))) {
+          const command = JSON.parse(stringCommand);
+          console.log('💌 Cached commands found for user', command);
+          if (userId !== command.toUser) continue;
           if (isOnline) {
-            io.to(userId).emit("request:receive", {
-              id,
-              toUser,
-              sender_id,
-              sent_at,
-              message
-            });
+            io.to(userId).emit("command:receive", command);
           } else {
             await redis.rpush(
-              `pending_requests:send:${userId}`,
-              JSON.stringify({
-                toUser: userId,
-                id,
-                sender_id,
-                sent_at,
-                message
-              })
+              `pending_app_commands:${userId}`,
+              JSON.stringify({ toUser: userId, ...command})
             );
           }
         }
@@ -187,29 +166,20 @@ export default function RegisterSocket(server) {
       }
     });
     
-    // SEND REQUESTS
-    socket.on("request:send", async ({ id, toUser, sent_at, sender_id, message }) => {
+    // SEND APP COMMANDS
+    socket.on("command:send", async (command) => {
       try {
-        if (!id || !toUser || !sender_id) return;
-        const isOnline = await redis.get(`online:${toUser}`);
+        if (!command?.toUser || !command?.sender_id || !command?.type) return;
+        //console.log(command)
+        const isOnline = await redis.get(`online:${command?.toUser}`);
         if (isOnline) {
-          io.to(toUser).emit("request:receive", {
-            id,
-            toUser,
-            sender_id,
-            sent_at,
-            message
-          });
+          //console.log('✔️user online, emitting commant')
+          io.to(command?.toUser).emit("command:receive", command);
         } else {
+          //console.log('Caching command for', command.toUser)
           await redis.rpush(
-            `pending_requests:sent:${toUser}`,
-            JSON.stringify({
-              id,
-              toUser,
-              sender_id,
-              sent_at,
-              message
-            })
+            `pending_app_commands:${command?.toUser}`,
+            JSON.stringify(command)
           )
         }
       } catch (err) {
