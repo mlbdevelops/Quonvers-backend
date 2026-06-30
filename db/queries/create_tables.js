@@ -2,6 +2,7 @@ import { pool } from '../db.js';
 
 export const setup_tables = async () => {
   await pool.query(`CREATE EXTENSION IF NOT EXISTS "pgcrypto";`);
+  //await pool.query(`DROP TABLE messages`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
@@ -74,17 +75,22 @@ export const setup_tables = async () => {
   `);
 
   await pool.query(`
-    CREATE TABLE IF NOT EXISTS messages (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      sender_id UUID REFERENCES users(id) ON DELETE CASCADE,
-      chat_id UUID REFERENCES chats(id) ON DELETE CASCADE,
-      media_url TEXT DEFAULT null,
+    CREATE TABLE IF NOT EXISTS pending_messages (
+      id TEXT PRIMARY KEY UNIQUE,
+      chat_id TEXT,
+      sender_id TEXT,
       content TEXT,
-      type TEXT CHECK (type IN ('text', 'image', 'voice', 'sticker', 'gif', 'video')),
-      delivered BOOLEAN DEFAULT false,
+      type TEXT,
+      content_url TEXT,
+      reply_to TEXT,
       edited BOOLEAN DEFAULT false,
-      disappears_at TIMESTAMP,
-      created_at TIMESTAMP DEFAULT NOW()
+      deleted BOOLEAN DEFAULT false,
+      disappearing_millisecs INTEGER,
+      status TEXT,
+      status_at TEXT,
+      created_at TEXT,
+      toUser TEXT NOT NULL,
+      room_type TEXT DEFAULT 'private'
     );
   `);
   

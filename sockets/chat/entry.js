@@ -7,6 +7,48 @@ export default function RegisterSocket(server) {
   const io = new Server(server, {
     cors: { origin: "*" }
   });
+  
+  const pendingMessages = {
+    get: async (user_id) => await pool.query(`
+      DELETE FROM pending_messages WHERE toUser = $1 RETURNING *
+    `, [user_id]),
+    add: async (msg) => await pool.query(`
+      INSERT INTO pending_messages(
+        id,
+        chat_id,
+        sender_id,
+        content,
+        type,
+        content_url,
+        reply_to,
+        edited,
+        deleted,
+        disappearing_millisecs,
+        status,
+        status_at,
+        created_at,
+        toUser,
+        room_type
+      )
+      VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+    `, [
+      msg?.id,
+      msg?.chat_id,
+      msg?.sender_id,
+      msg?.content,
+      msg?.type,
+      msg?.content_url,
+      msg?.reply_to,
+      msg?.edited,
+      msg?.deleted,
+      msg?.disappearing_millisecs,
+      msg?.status,
+      msg?.status_at,
+      msg?.created_at,
+      msg?.toUser,
+      msg?.room_type
+    ])
+  }
 
   io.on("connection", (socket) => {
     // AUTH / CONNECTION
@@ -21,14 +63,15 @@ export default function RegisterSocket(server) {
         await redis.set(`online:${userId}`, "1");
         console.log(`✅ ${userId} connected`);
         const isOnline = await redis.get(`online:${userId}`);
-        
+        const pendings = await pendingMessages.get(userId)
+        const rowMessages = pendings.rows
+        console.log(rowMessages)
         // DELIVER OFFLINE MESSAGES
         let msg;
-        while ((msg = await redis.lpop(`undelivered_msg:${userId}`))) {
-          const parsed = JSON.parse(msg);
+        while ((msg = rowMessages?.shift())) {
           console.log(msg);
           // send message
-          io.to(userId).emit("message:receive", parsed);
+          io.to(userId).emit("message:receive", msg);
         }
         
         let status;
@@ -72,6 +115,12 @@ export default function RegisterSocket(server) {
             );
           }
         }
+        
+        let pendingMessageCommand;
+        while((pendingMessageCommand = await redis.lpop(`pending_message_update:${userId}`))){
+          const jsonRecord = JSON.stringify(pendingMessageCommand)
+          if(jsonRecord.toUser === userId) io.to(jsonRecord?.toUser).emit("deleteMessage:foreveryone:receive", jsonRecord);
+        }
       } catch (err) {
         console.error("❌ auth error:", err);
       }
@@ -83,10 +132,6 @@ export default function RegisterSocket(server) {
         if (!socket.userId) {
           return typeof ack === 'function' && ack({ ok: false });
         }
-        
-        //Check if id exists
-        const getMsg = await redis.get(`undelivered_msg:${msg.id}`);
-        if (getMsg) return;
         
         // basic validation
         if (!msg?.id || !msg?.toUser) {
@@ -101,11 +146,12 @@ export default function RegisterSocket(server) {
         if (isOnline) {
           io.to(msg.toUser).emit("message:receive", msg);
         } else {
-          await redis.rpush(
+          const pend = await pendingMessages.add(msg);
+          /*await redis.rpush(
             `undelivered_msg:${msg.toUser}`,
             JSON.stringify(msg)
-          );
-          console.log(`📥 queued for ${msg.toUser}`);
+          );*/
+          console.log(pend?.rows);
         }
       } catch (err) {
         console.error("❌ send error:", err);
@@ -170,13 +216,10 @@ export default function RegisterSocket(server) {
     socket.on("command:send", async (command) => {
       try {
         if (!command?.toUser || !command?.sender_id || !command?.type) return;
-        //console.log(command)
         const isOnline = await redis.get(`online:${command?.toUser}`);
         if (isOnline) {
-          //console.log('✔️user online, emitting commant')
           io.to(command?.toUser).emit("command:receive", command);
         } else {
-          //console.log('Caching command for', command.toUser)
           await redis.rpush(
             `pending_app_commands:${command?.toUser}`,
             JSON.stringify(command)
@@ -187,14 +230,31 @@ export default function RegisterSocket(server) {
       }
     });
     
+    // SEND APP COMMANDS
+    socket.on("deleteMessage:foreveryone:send", async (record) => {
+      try {
+        console.log(record)
+        if (!record?.toUser || !record?.sender_id || !record?.message_id) return;
+        const isOnline = await redis.get(`online:${record?.toUser}`);
+        const checkIfExist = await pool.query('DELETE FROM pending_messages WHERE id = $1 AND sender_id = $2 RETURNING *', [record.message_id, record.sender_id])
+        const result = checkIfExist.rows
+        if (!result.length){
+          if(isOnline) io.to(record?.toUser).emit("deleteMessage:foreveryone:receive", record);
+          else{
+            await redis.rpush(`pending_message_update:${record?.toUser}`, JSON.stringify(record))
+          }
+        }
+      } catch (err) {
+        console.error("❌ read error:", err);
+      }
+    });
+    
     // DISCONNECT
     socket.on("disconnect", async () => {
       if (!socket.userId) return;
-      // delay avoids flicker on reconnect
       setTimeout(async () => {
         try {
           const sockets = await io.in(socket.userId).fetchSockets();
-          
           if (sockets.length === 0) {
             await redis.del(`online:${socket.userId}`);
             console.log(`🔴 ${socket.userId} went offline`);
@@ -204,6 +264,5 @@ export default function RegisterSocket(server) {
         }
       }, 1000);
     });
-    
   });
 }
